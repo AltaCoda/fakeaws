@@ -1,7 +1,17 @@
 // Package fakeaws provides a mock AWS server for SES v2 and STS.
 //
-// Use NewEngine to create the core HTTP handler, then mount it on an
-// httptest.Server (embedded mode) or a real listener (standalone mode).
+// For tests, use NewFakeServer() which wraps the engine in an httptest.Server
+// and provides SDK client factories:
+//
+//	fake := fakeaws.NewFakeServer()
+//	defer fake.Close()
+//	client := fake.SESClient(ctx)
+//
+// Use the builder API for ergonomic scenario setup:
+//
+//	fake.AddScenario(fakeaws.WhenOperation("SendEmail").RespondThrottle())
+//
+// For standalone mode, use NewEngine directly with a real listener.
 package fakeaws
 
 import (
@@ -51,4 +61,14 @@ const (
 var (
 	GenerateMessageID = engine.GenerateMessageID
 	GenerateARN       = engine.GenerateARN
+)
+
+// --- Response helpers for custom responders ---
+
+var (
+	WriteJSONResponse = engine.WriteJSONResponse
+	WriteJSONError    = engine.WriteJSONError
+	WriteXMLResponse  = engine.WriteXMLResponse
+	WriteXMLError     = engine.WriteXMLError
+	WriteError        = engine.WriteError
 )

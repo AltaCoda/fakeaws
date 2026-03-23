@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,6 +34,9 @@ type ParsedRequest struct {
 
 	// Path parameters extracted by the router (e.g. "Name" from /v2/email/configuration-sets/{Name})
 	PathParams map[string]string
+
+	// Context from the original HTTP request. Use for timeout-aware responders.
+	Context context.Context
 }
 
 var sigv4Re = regexp.MustCompile(`Credential=([^/]+)/\d{8}/([^/]+)/`)
@@ -51,6 +55,7 @@ func ParseRequest(r *http.Request, service, operation string) *ParsedRequest {
 		RawBody:    body,
 		Body:       make(map[string]any),
 		PathParams: make(map[string]string),
+		Context:    r.Context(),
 	}
 
 	// Extract Region and AccessKeyID from SigV4 Authorization header
@@ -121,6 +126,9 @@ func (pr *ParsedRequest) FieldAt(path string) (any, bool) {
 func parseArrayIndex(part string) (string, int, bool) {
 	bracketIdx := strings.Index(part, "[")
 	if bracketIdx == -1 {
+		return part, 0, false
+	}
+	if !strings.HasSuffix(part, "]") || len(part) < bracketIdx+3 {
 		return part, 0, false
 	}
 	name := part[:bracketIdx]

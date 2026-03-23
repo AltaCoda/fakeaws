@@ -127,8 +127,11 @@ func (ss *ScenarioStack) Evaluate(req *ParsedRequest) (Responder, string) {
 				original := responder
 				delay := s.Delay
 				responder = func(w http.ResponseWriter, req *ParsedRequest) {
-					time.Sleep(delay)
-					original(w, req)
+					select {
+					case <-time.After(delay):
+						original(w, req)
+					case <-req.Context.Done():
+					}
 				}
 			}
 
