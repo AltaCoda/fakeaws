@@ -5,7 +5,7 @@ import (
 )
 
 // Route maps an HTTP method + path pattern to an operation name.
-type Route struct {
+type route struct {
 	Method    string
 	Pattern   string // e.g. "/v2/email/configuration-sets/{ConfigurationSetName}"
 	Operation string
@@ -20,7 +20,7 @@ type routeMatch struct {
 
 // Router resolves incoming requests to service + operation + path params.
 type Router struct {
-	sesRoutes []Route
+	sesRoutes []route
 	stsActions map[string]string
 }
 

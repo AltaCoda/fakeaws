@@ -62,6 +62,7 @@ const (
 var (
 	GenerateMessageID = engine.GenerateMessageID
 	GenerateARN       = engine.GenerateARN
+	FakeCredentials   = engine.FakeCredentials
 )
 
 // --- Response helpers for custom responders ---

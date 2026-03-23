@@ -121,6 +121,9 @@ func presetSandboxMode(config json.RawMessage) ([]*engine.Scenario, error) {
 
 	return []*engine.Scenario{
 		{
+			// Note: only checks the first To address. Real SES sandbox blocks
+			// the entire send if any recipient is unverified. This is a simplification
+			// sufficient for testing the common single-recipient path.
 			Name:                "sandbox_mode: only allow sends to verified addresses",
 			MatcherDescription:  "operation=SendEmail AND to not in verified list",
 			ResponseDescription: "400 MessageRejected",

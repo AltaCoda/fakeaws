@@ -13,10 +13,10 @@ import (
 // Engine is the core request handling pipeline for the fake AWS server.
 // It implements http.Handler.
 type Engine struct {
-	Scenarios *ScenarioStack
-	Recorder  *Recorder
-	Router    *Router
-	logger *zap.Logger
+	scenarios *ScenarioStack
+	recorder  *Recorder
+	router    *Router
+	logger    *zap.Logger
 }
 
 // NewEngine creates an Engine with default configuration.
@@ -25,9 +25,9 @@ func NewEngine(logger *zap.Logger) *Engine {
 		logger = zap.NewNop()
 	}
 	return &Engine{
-		Scenarios: &ScenarioStack{},
-		Recorder:  NewRecorder(DefaultMaxRequests),
-		Router:    NewRouter(),
+		scenarios: &ScenarioStack{},
+		recorder:  NewRecorder(DefaultMaxRequests),
+		router:    NewRouter(),
 		logger:    logger.Named("engine"),
 	}
 }
@@ -57,7 +57,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Route
-	match := e.Router.Resolve(r.Method, r.URL.Path, bodyReader)
+	match := e.router.Resolve(r.Method, r.URL.Path, bodyReader)
 	if match == nil {
 		e.logger.Debug("no route matched",
 			zap.String("method", r.Method),
@@ -94,7 +94,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rec := &responseCapture{ResponseWriter: w}
 
 	// Evaluate scenarios
-	responder, scenarioID := e.Scenarios.Evaluate(parsed)
+	responder, scenarioID := e.scenarios.Evaluate(parsed)
 	if responder == nil {
 		responder = DefaultHandler(match.Operation)
 	}
@@ -103,7 +103,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	responder(rec, parsed)
 
 	// Record
-	e.Recorder.Append(RecordedRequest{
+	e.recorder.Append(RecordedRequest{
 		Timestamp:       parsed.Timestamp,
 		Service:         parsed.Service,
 		Operation:       parsed.Operation,
@@ -121,47 +121,47 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // AddScenario pushes a scenario onto the stack.
 func (e *Engine) AddScenario(s *Scenario) string {
-	return e.Scenarios.Push(s)
+	return e.scenarios.Push(s)
 }
 
 // RemoveScenario removes a scenario by ID.
 func (e *Engine) RemoveScenario(id string) bool {
-	return e.Scenarios.Remove(id)
+	return e.scenarios.Remove(id)
 }
 
 // ListScenarios returns info for all active scenarios.
 func (e *Engine) ListScenarios() []ScenarioInfo {
-	return e.Scenarios.List()
+	return e.scenarios.List()
 }
 
 // ClearScenarios removes all scenarios.
 func (e *Engine) ClearScenarios() {
-	e.Scenarios.Clear()
+	e.scenarios.Clear()
 }
 
 // Requests returns all recorded requests.
 func (e *Engine) Requests() []RecordedRequest {
-	return e.Recorder.All()
+	return e.recorder.All()
 }
 
 // RequestsFor returns recorded requests matching service and operation.
 func (e *Engine) RequestsFor(service, operation string) []RecordedRequest {
-	return e.Recorder.For(service, operation)
+	return e.recorder.For(service, operation)
 }
 
 // ClearRequests removes all recorded requests.
 func (e *Engine) ClearRequests() {
-	e.Recorder.Clear()
+	e.recorder.Clear()
 }
 
 // CountRequests returns the number of requests matching service and operation.
 func (e *Engine) CountRequests(service, operation string) int {
-	return e.Recorder.Count(service, operation)
+	return e.recorder.Count(service, operation)
 }
 
 // LastRequest returns the most recent request matching service and operation.
 func (e *Engine) LastRequest(service, operation string) *RecordedRequest {
-	return e.Recorder.Last(service, operation)
+	return e.recorder.Last(service, operation)
 }
 
 // Reset clears all scenarios and recorded requests.

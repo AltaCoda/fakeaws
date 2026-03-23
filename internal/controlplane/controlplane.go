@@ -175,7 +175,10 @@ func (cp *ControlPlane) applyPreset(w http.ResponseWriter, r *http.Request) {
 
 	var config json.RawMessage
 	if r.Body != nil && r.ContentLength > 0 {
-		json.NewDecoder(r.Body).Decode(&config)
+		if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body: " + err.Error()})
+			return
+		}
 	}
 
 	scenarios, err := fn(config)
@@ -269,7 +272,7 @@ func parseInt(s string) int {
 func (cp *ControlPlane) ApplyPreset(name string, config json.RawMessage) error {
 	fn, ok := cp.presets[name]
 	if !ok {
-		return errorf("unknown preset: %s", name)
+		return fmt.Errorf("unknown preset: %s", name)
 	}
 	scenarios, err := fn(config)
 	if err != nil {
@@ -282,6 +285,4 @@ func (cp *ControlPlane) ApplyPreset(name string, config json.RawMessage) error {
 	return nil
 }
 
-func errorf(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
-}
+

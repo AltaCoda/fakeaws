@@ -113,7 +113,11 @@ func TestEngine_Reset(t *testing.T) {
 			w.WriteHeader(200)
 		},
 	})
-	e.Recorder.Append(RecordedRequest{Service: "sesv2", Operation: "SendEmail"})
+
+	// Generate a recorded request via actual HTTP call
+	srv := httptest.NewServer(e)
+	defer srv.Close()
+	http.Post(srv.URL+"/v2/email/outbound-emails", "application/json", strings.NewReader(`{}`))
 
 	e.Reset()
 
