@@ -61,12 +61,11 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if match == nil {
 		// Unrecognized service (S3, etc.) — return 200 OK as a permissive stub
 		// so that preflight checks and other non-SES/STS calls don't fail.
-		e.logger.Debug("unknown service, returning permissive 200",
+		e.logger.Debug("unknown service, returning permissive stub",
 			zap.String("method", r.Method),
 			zap.String("path", r.URL.Path),
 		)
-		w.Header().Set("x-amzn-RequestId", GenerateMessageID())
-		w.WriteHeader(http.StatusOK)
+		writePermissiveResponse(w, r)
 		return
 	}
 
