@@ -4,6 +4,10 @@ import (
 	"encoding/xml"
 	"net/http"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	sestypes "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 )
 
 // defaultHandlers maps operation names to their default success responders.
@@ -13,9 +17,9 @@ var defaultHandlers = map[string]Responder{
 	"SendBulkEmail": defaultSendBulkEmail,
 
 	// Account
-	"GetAccount":               defaultGetAccount,
+	"GetAccount":                  defaultGetAccount,
 	"PutAccountSendingAttributes": defaultEmpty,
-	"PutAccountDetails":        defaultEmpty,
+	"PutAccountDetails":           defaultEmpty,
 
 	// Identities
 	"ListEmailIdentities":                      defaultListEmailIdentities,
@@ -64,24 +68,26 @@ func defaultEmpty(w http.ResponseWriter, req *ParsedRequest) {
 	case "sts":
 		WriteXMLResponse(w, http.StatusOK, nil)
 	default:
-		WriteJSONResponse(w, http.StatusOK, map[string]any{})
+		WriteJSONResponse(w, http.StatusOK, struct{}{})
 	}
 }
 
 // --- Sending ---
 
 func defaultSendEmail(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"MessageId": GenerateMessageID(),
+	msgID := GenerateMessageID()
+	WriteJSONResponse(w, http.StatusOK, sesv2.SendEmailOutput{
+		MessageId: &msgID,
 	})
 }
 
 func defaultSendBulkEmail(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"BulkEmailEntryResults": []map[string]any{
+	msgID := GenerateMessageID()
+	WriteJSONResponse(w, http.StatusOK, sesv2.SendBulkEmailOutput{
+		BulkEmailEntryResults: []sestypes.BulkEmailEntryResult{
 			{
-				"Status":    "SUCCESS",
-				"MessageId": GenerateMessageID(),
+				Status:    sestypes.BulkEmailStatusSuccess,
+				MessageId: &msgID,
 			},
 		},
 	})
@@ -90,17 +96,17 @@ func defaultSendBulkEmail(w http.ResponseWriter, req *ParsedRequest) {
 // --- Account ---
 
 func defaultGetAccount(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"SendQuota": map[string]any{
-			"Max24HourSend":   50000.0,
-			"MaxSendRate":     14.0,
-			"SentLast24Hours": 100.0,
+	WriteJSONResponse(w, http.StatusOK, sesv2.GetAccountOutput{
+		SendingEnabled:          true,
+		ProductionAccessEnabled: true,
+		EnforcementStatus:       aws.String("HEALTHY"),
+		SendQuota: &sestypes.SendQuota{
+			Max24HourSend:   50000,
+			MaxSendRate:     14,
+			SentLast24Hours: 100,
 		},
-		"SendingEnabled":          true,
-		"ProductionAccessEnabled": true,
-		"EnforcementStatus":       "HEALTHY",
-		"Details": map[string]any{
-			"WebsiteURL": "https://sendops.dev",
+		Details: &sestypes.AccountDetails{
+			WebsiteURL: aws.String("https://sendops.dev"),
 		},
 	})
 }
@@ -108,32 +114,32 @@ func defaultGetAccount(w http.ResponseWriter, req *ParsedRequest) {
 // --- Identities ---
 
 func defaultListEmailIdentities(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"EmailIdentities": []map[string]any{},
+	WriteJSONResponse(w, http.StatusOK, sesv2.ListEmailIdentitiesOutput{
+		EmailIdentities: []sestypes.IdentityInfo{},
 	})
 }
 
 func defaultCreateEmailIdentity(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"IdentityType":             "EMAIL_ADDRESS",
-		"VerifiedForSendingStatus": true,
-		"DkimAttributes": map[string]any{
-			"SigningEnabled": true,
-			"Status":         "SUCCESS",
-			"Tokens":         []string{"token1", "token2", "token3"},
+	WriteJSONResponse(w, http.StatusOK, sesv2.CreateEmailIdentityOutput{
+		IdentityType:             sestypes.IdentityTypeEmailAddress,
+		VerifiedForSendingStatus: true,
+		DkimAttributes: &sestypes.DkimAttributes{
+			SigningEnabled: true,
+			Status:         sestypes.DkimStatusSuccess,
+			Tokens:         []string{"token1", "token2", "token3"},
 		},
 	})
 }
 
 func defaultGetEmailIdentity(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"IdentityType":             "EMAIL_ADDRESS",
-		"VerifiedForSendingStatus": true,
-		"FeedbackForwardingStatus": true,
-		"DkimAttributes": map[string]any{
-			"SigningEnabled": true,
-			"Status":         "SUCCESS",
-			"Tokens":         []string{"token1", "token2", "token3"},
+	WriteJSONResponse(w, http.StatusOK, sesv2.GetEmailIdentityOutput{
+		IdentityType:             sestypes.IdentityTypeEmailAddress,
+		VerifiedForSendingStatus: true,
+		FeedbackForwardingStatus: true,
+		DkimAttributes: &sestypes.DkimAttributes{
+			SigningEnabled: true,
+			Status:         sestypes.DkimStatusSuccess,
+			Tokens:         []string{"token1", "token2", "token3"},
 		},
 	})
 }
@@ -141,33 +147,33 @@ func defaultGetEmailIdentity(w http.ResponseWriter, req *ParsedRequest) {
 // --- Configuration Sets ---
 
 func defaultListConfigurationSets(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"ConfigurationSets": []map[string]any{},
+	WriteJSONResponse(w, http.StatusOK, sesv2.ListConfigurationSetsOutput{
+		ConfigurationSets: []string{},
 	})
 }
 
 func defaultGetConfigurationSet(w http.ResponseWriter, req *ParsedRequest) {
 	name := req.PathParams["ConfigurationSetName"]
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"ConfigurationSetName": name,
+	WriteJSONResponse(w, http.StatusOK, sesv2.GetConfigurationSetOutput{
+		ConfigurationSetName: &name,
 	})
 }
 
 // --- Templates ---
 
 func defaultListEmailTemplates(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"TemplatesMetadata": []map[string]any{},
+	WriteJSONResponse(w, http.StatusOK, sesv2.ListEmailTemplatesOutput{
+		TemplatesMetadata: []sestypes.EmailTemplateMetadata{},
 	})
 }
 
 func defaultGetEmailTemplate(w http.ResponseWriter, req *ParsedRequest) {
 	name := req.PathParams["TemplateName"]
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"TemplateName": name,
-		"TemplateContent": map[string]any{
-			"Subject": "Template " + name,
-			"Html":    "<p>Template content</p>",
+	WriteJSONResponse(w, http.StatusOK, sesv2.GetEmailTemplateOutput{
+		TemplateName: &name,
+		TemplateContent: &sestypes.EmailTemplateContent{
+			Subject: aws.String("Template " + name),
+			Html:    aws.String("<p>Template content</p>"),
 		},
 	})
 }
@@ -175,8 +181,8 @@ func defaultGetEmailTemplate(w http.ResponseWriter, req *ParsedRequest) {
 // --- Suppression ---
 
 func defaultListSuppressedDestinations(w http.ResponseWriter, req *ParsedRequest) {
-	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"SuppressedDestinationSummaries": []map[string]any{},
+	WriteJSONResponse(w, http.StatusOK, sesv2.ListSuppressedDestinationsOutput{
+		SuppressedDestinationSummaries: []sestypes.SuppressedDestinationSummary{},
 	})
 }
 

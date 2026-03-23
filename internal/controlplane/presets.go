@@ -7,6 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	sestypes "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
+
 	"github.com/altacoda/fakeaws/internal/engine"
 )
 
@@ -33,31 +37,31 @@ func presetHappyPath(_ json.RawMessage) ([]*engine.Scenario, error) {
 			MatcherDescription:  "operation=ListEmailIdentities",
 			ResponseDescription: "fake verified identities",
 			Responder: func(w http.ResponseWriter, req *engine.ParsedRequest) {
-				engine.WriteJSONResponse(w, http.StatusOK, map[string]any{
-					"EmailIdentities": []map[string]any{
+				engine.WriteJSONResponse(w, http.StatusOK, sesv2.ListEmailIdentitiesOutput{
+					EmailIdentities: []sestypes.IdentityInfo{
 						{
-							"IdentityType":             "DOMAIN",
-							"IdentityName":             "sendops.dev",
-							"SendingEnabled":           true,
-							"VerificationStatus":       "SUCCESS",
+							IdentityType:       sestypes.IdentityTypeDomain,
+							IdentityName:       aws.String("sendops.dev"),
+							SendingEnabled:     true,
+							VerificationStatus: sestypes.VerificationStatusSuccess,
 						},
 						{
-							"IdentityType":             "DOMAIN",
-							"IdentityName":             "example.com",
-							"SendingEnabled":           true,
-							"VerificationStatus":       "SUCCESS",
+							IdentityType:       sestypes.IdentityTypeDomain,
+							IdentityName:       aws.String("example.com"),
+							SendingEnabled:     true,
+							VerificationStatus: sestypes.VerificationStatusSuccess,
 						},
 						{
-							"IdentityType":             "EMAIL_ADDRESS",
-							"IdentityName":             "noreply@sendops.dev",
-							"SendingEnabled":           true,
-							"VerificationStatus":       "SUCCESS",
+							IdentityType:       sestypes.IdentityTypeEmailAddress,
+							IdentityName:       aws.String("noreply@sendops.dev"),
+							SendingEnabled:     true,
+							VerificationStatus: sestypes.VerificationStatusSuccess,
 						},
 						{
-							"IdentityType":             "EMAIL_ADDRESS",
-							"IdentityName":             "test@example.com",
-							"SendingEnabled":           true,
-							"VerificationStatus":       "SUCCESS",
+							IdentityType:       sestypes.IdentityTypeEmailAddress,
+							IdentityName:       aws.String("test@example.com"),
+							SendingEnabled:     true,
+							VerificationStatus: sestypes.VerificationStatusSuccess,
 						},
 					},
 				})
@@ -70,18 +74,18 @@ func presetHappyPath(_ json.RawMessage) ([]*engine.Scenario, error) {
 			ResponseDescription: "verified identity with DKIM",
 			Responder: func(w http.ResponseWriter, req *engine.ParsedRequest) {
 				identity := req.PathParams["EmailIdentity"]
-				identityType := "EMAIL_ADDRESS"
+				idType := sestypes.IdentityTypeEmailAddress
 				if !strings.Contains(identity, "@") {
-					identityType = "DOMAIN"
+					idType = sestypes.IdentityTypeDomain
 				}
-				engine.WriteJSONResponse(w, http.StatusOK, map[string]any{
-					"IdentityType":             identityType,
-					"VerifiedForSendingStatus": true,
-					"FeedbackForwardingStatus": true,
-					"DkimAttributes": map[string]any{
-						"SigningEnabled": true,
-						"Status":         "SUCCESS",
-						"Tokens":         []string{"dkim1-" + identity, "dkim2-" + identity, "dkim3-" + identity},
+				engine.WriteJSONResponse(w, http.StatusOK, sesv2.GetEmailIdentityOutput{
+					IdentityType:             idType,
+					VerifiedForSendingStatus: true,
+					FeedbackForwardingStatus: true,
+					DkimAttributes: &sestypes.DkimAttributes{
+						SigningEnabled: true,
+						Status:         sestypes.DkimStatusSuccess,
+						Tokens:         []string{"dkim1-" + identity, "dkim2-" + identity, "dkim3-" + identity},
 					},
 				})
 			},
@@ -92,8 +96,8 @@ func presetHappyPath(_ json.RawMessage) ([]*engine.Scenario, error) {
 			MatcherDescription:  "operation=ListConfigurationSets",
 			ResponseDescription: "default configuration set",
 			Responder: func(w http.ResponseWriter, req *engine.ParsedRequest) {
-				engine.WriteJSONResponse(w, http.StatusOK, map[string]any{
-					"ConfigurationSets": []string{"sendops-events"},
+				engine.WriteJSONResponse(w, http.StatusOK, sesv2.ListConfigurationSetsOutput{
+					ConfigurationSets: []string{"sendops-events"},
 				})
 			},
 		},
@@ -109,13 +113,15 @@ func presetSendingPaused(_ json.RawMessage) ([]*engine.Scenario, error) {
 			MatcherDescription:  "operation=GetAccount",
 			ResponseDescription: "SendingEnabled=false",
 			Responder: func(w http.ResponseWriter, req *engine.ParsedRequest) {
-				engine.WriteJSONResponse(w, http.StatusOK, map[string]any{
-					"SendQuota": map[string]any{
-						"Max24HourSend":   50000.0,
-						"MaxSendRate":     14.0,
-						"SentLast24Hours": 0.0,
+				engine.WriteJSONResponse(w, http.StatusOK, sesv2.GetAccountOutput{
+					SendingEnabled:          false,
+					ProductionAccessEnabled: true,
+					EnforcementStatus:       aws.String("HEALTHY"),
+					SendQuota: &sestypes.SendQuota{
+						Max24HourSend:   50000,
+						MaxSendRate:     14,
+						SentLast24Hours: 0,
 					},
-					"SendingEnabled": false,
 				})
 			},
 		},
