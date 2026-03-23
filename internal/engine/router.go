@@ -34,6 +34,8 @@ func NewRouter() *Router {
 
 // Resolve determines the service, operation, and path params for a request.
 // Returns nil if the request doesn't match any known route.
+// For paths that belong to a known service prefix but don't match a specific route,
+// Service will be set but Operation will be empty.
 func (rt *Router) Resolve(method, path string, bodyReader func() map[string]any) *routeMatch {
 	// Control plane requests are handled separately
 	if strings.HasPrefix(path, "/_control/") {
@@ -54,7 +56,8 @@ func (rt *Router) Resolve(method, path string, bodyReader func() map[string]any)
 				}
 			}
 		}
-		return nil
+		// Known SES prefix but no matching route
+		return &routeMatch{Service: "sesv2", Operation: "", PathParams: map[string]string{}}
 	}
 
 	// STS: POST to / with Action= in body

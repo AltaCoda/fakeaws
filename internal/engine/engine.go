@@ -59,18 +59,32 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Route
 	match := e.router.Resolve(r.Method, r.URL.Path, bodyReader)
 	if match == nil {
-		e.logger.Debug("no route matched",
+		// Unrecognized service (S3, etc.) — return 200 OK as a permissive stub
+		// so that preflight checks and other non-SES/STS calls don't fail.
+		e.logger.Debug("unknown service, returning permissive 200",
 			zap.String("method", r.Method),
 			zap.String("path", r.URL.Path),
 		)
-		WriteJSONError(w, http.StatusNotFound, "UnknownOperationException",
-			"No route matched: "+r.Method+" "+r.URL.Path)
+		w.Header().Set("x-amzn-RequestId", GenerateMessageID())
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	// Skip control plane requests — they'll be handled by a separate mux
 	if match.Service == "control" {
 		WriteJSONError(w, http.StatusNotFound, "NotFound", "Control plane not mounted")
+		return
+	}
+
+	// Known service but unrecognized operation — 404
+	if match.Operation == "" {
+		e.logger.Debug("no route matched for known service",
+			zap.String("service", match.Service),
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+		)
+		WriteError(w, match.Service, http.StatusNotFound, "UnknownOperationException",
+			"No route matched: "+r.Method+" "+r.URL.Path)
 		return
 	}
 

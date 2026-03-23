@@ -82,6 +82,24 @@ func TestEngine_UnknownRoute_404(t *testing.T) {
 	}
 }
 
+func TestEngine_UnknownService_Permissive200(t *testing.T) {
+	e := newTestEngine()
+	srv := httptest.NewServer(e)
+	defer srv.Close()
+
+	// S3 HeadBucket — unknown service, should get permissive 200
+	req, _ := http.NewRequest("HEAD", srv.URL+"/my-bucket", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected permissive 200 for unknown service, got %d", resp.StatusCode)
+	}
+}
+
 func TestEngine_STS_GetCallerIdentity(t *testing.T) {
 	e := newTestEngine()
 	srv := httptest.NewServer(e)
