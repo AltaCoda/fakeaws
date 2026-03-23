@@ -56,6 +56,7 @@ button.primary { background: #238636; border-color: #238636; color: #fff; }
       <button onclick="applyPreset('throttle_all_sends')">Throttle Sends</button>
       <button onclick="applyPreset('sending_paused')">Pause Account</button>
       <button onclick="promptPreset('sandbox_mode')">Sandbox Mode</button>
+      <button onclick="promptPreset('reject_unverified')">Reject Unverified</button>
       <button onclick="applyPreset('intermittent_failures')">Intermittent Failures</button>
       <button onclick="applyPreset('slow_responses')">Slow Responses</button>
     </div>
@@ -89,9 +90,16 @@ button.primary { background: #238636; border-color: #238636; color: #fff; }
   </div>
 
   <div class="panel">
-    <h2>Request Log <button onclick="clearRequests()" style="float:right;font-size:11px">Clear</button></h2>
+    <h2>Request Log
+      <span style="float:right;display:flex;gap:6px;align-items:center">
+        <label style="font-size:11px;color:#8b949e;text-transform:none;letter-spacing:0"><input type="checkbox" id="auto-refresh" checked onchange="toggleAutoRefresh()"> Auto</label>
+        <button onclick="clearRequests()" style="font-size:11px">Clear</button>
+      </span>
+    </h2>
     <div class="form-group" style="margin-bottom:8px">
-      <input id="op-filter" placeholder="Filter by operation..." oninput="refreshRequests()">
+      <select id="op-filter" onchange="refreshRequests()">
+        <option value="">All operations</option>
+      </select>
     </div>
     <div id="requests"></div>
     <div id="req-detail" class="detail" style="display:none"></div>
@@ -136,11 +144,22 @@ async function refreshScenarios() {
 
 async function refreshRequests() {
   const filter = document.getElementById('op-filter').value;
-  let url = '/_control/requests?last=50';
-  if (filter) url += '&operation=' + encodeURIComponent(filter);
-  const data = await api('GET', url);
+  // Fetch unfiltered to populate the dropdown, then filter client-side
+  const data = await api('GET', '/_control/requests?last=50');
+  const allReqs = data.requests || [];
+
+  // Populate operation dropdown from observed operations
+  const ops = [...new Set(allReqs.map(r => r.operation))].sort();
+  const select = document.getElementById('op-filter');
+  const current = select.value;
+  const options = '<option value="">All operations</option>' +
+    ops.map(op => `<option value="${esc(op)}"${op === current ? ' selected' : ''}>${esc(op)}</option>`).join('');
+  select.innerHTML = options;
+
+  // Apply filter
+  const reqs = filter ? allReqs.filter(r => r.operation === filter) : allReqs;
+
   const el = document.getElementById('requests');
-  const reqs = data.requests || [];
   if (reqs.length === 0) {
     el.innerHTML = '<div style="color:#8b949e;padding:8px">No requests recorded</div>';
     return;
@@ -223,17 +242,33 @@ async function resetAll() {
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
+// Auto-refresh control
+let refreshInterval = null;
+let scenarioInterval = null;
+
+function toggleAutoRefresh() {
+  const on = document.getElementById('auto-refresh').checked;
+  if (on) {
+    refreshInterval = setInterval(refreshRequests, 2000);
+    scenarioInterval = setInterval(refreshScenarios, 5000);
+  } else {
+    clearInterval(refreshInterval);
+    clearInterval(scenarioInterval);
+    refreshInterval = null;
+    scenarioInterval = null;
+  }
+}
+
 // Toggle error/delay fields
 document.getElementById('s-type').addEventListener('change', function() {
   document.getElementById('error-fields').style.display = this.value === 'error' ? '' : 'none';
   document.getElementById('delay-fields').style.display = this.value === 'delay' ? '' : 'none';
 });
 
-// Initial load + auto-refresh
+// Initial load + start auto-refresh
 refreshScenarios();
 refreshRequests();
-setInterval(refreshRequests, 2000);
-setInterval(refreshScenarios, 5000);
+toggleAutoRefresh();
 </script>
 </body>
 </html>
