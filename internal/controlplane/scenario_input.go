@@ -93,17 +93,20 @@ func ScenarioFromJSON(input ScenarioInput) (*engine.Scenario, error) {
 func buildResponder(spec ResponseSpec) (engine.Responder, string, error) {
 	switch spec.Type {
 	case "success", "":
-		body := spec.Body
-		if body == nil {
-			body = map[string]any{}
+		if spec.Body != nil {
+			body := spec.Body
+			return func(w http.ResponseWriter, req *engine.ParsedRequest) {
+				code := spec.StatusCode
+				if code == 0 {
+					code = http.StatusOK
+				}
+				engine.WriteJSONResponse(w, code, body)
+			}, "success (custom body)", nil
 		}
+		// No body specified — delegate to default handler for SDK-typed response
 		return func(w http.ResponseWriter, req *engine.ParsedRequest) {
-			code := spec.StatusCode
-			if code == 0 {
-				code = http.StatusOK
-			}
-			engine.WriteJSONResponse(w, code, body)
-		}, "success", nil
+			engine.DefaultHandler(req.Operation)(w, req)
+		}, "success (default)", nil
 
 	case "error":
 		if spec.ErrorCode == "" {
@@ -132,13 +135,15 @@ func buildResponder(spec ResponseSpec) (engine.Responder, string, error) {
 		}, "timeout", nil
 
 	case "delay":
-		// Delay is handled via Scenario.Delay field, responder is success
-		body := spec.Body
-		if body == nil {
-			body = map[string]any{}
+		// Delay is handled via Scenario.Delay field, responder delegates to default
+		if spec.Body != nil {
+			body := spec.Body
+			return func(w http.ResponseWriter, req *engine.ParsedRequest) {
+				engine.WriteJSONResponse(w, http.StatusOK, body)
+			}, fmt.Sprintf("delay %dms (custom body)", spec.DelayMs), nil
 		}
 		return func(w http.ResponseWriter, req *engine.ParsedRequest) {
-			engine.WriteJSONResponse(w, http.StatusOK, body)
+			engine.DefaultHandler(req.Operation)(w, req)
 		}, fmt.Sprintf("delay %dms", spec.DelayMs), nil
 
 	default:
