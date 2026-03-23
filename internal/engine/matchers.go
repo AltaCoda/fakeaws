@@ -1,6 +1,9 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"math/rand"
+)
 
 // OperationIs matches requests for a specific operation name.
 func OperationIs(op string) Matcher {
@@ -43,6 +46,14 @@ func All(matchers ...Matcher) Matcher {
 			}
 		}
 		return true
+	}
+}
+
+// Probability matches with the given probability (0.0 to 1.0).
+// Useful for simulating intermittent failures.
+func Probability(p float64) Matcher {
+	return func(req *ParsedRequest) bool {
+		return rand.Float64() < p
 	}
 }
 

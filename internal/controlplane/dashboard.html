@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fakeaws dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #0d1117; color: #c9d1d9; font-size: 14px; }
+.container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #30363d; }
+header h1 { font-size: 18px; color: #58a6ff; }
+.panel { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; }
+.panel h2 { font-size: 14px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+button:hover { background: #30363d; }
+button.danger { border-color: #f85149; color: #f85149; }
+button.primary { background: #238636; border-color: #238636; color: #fff; }
+.scenario-card { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: start; }
+.scenario-card .info { flex: 1; }
+.scenario-card .name { color: #58a6ff; font-weight: 600; }
+.scenario-card .meta { color: #8b949e; font-size: 12px; margin-top: 4px; }
+.scenario-card .remove { background: none; border: none; color: #f85149; cursor: pointer; font-size: 16px; padding: 0 4px; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.presets button { font-size: 12px; padding: 4px 10px; }
+.req-row { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 8px 10px; margin-bottom: 4px; cursor: pointer; display: flex; gap: 12px; font-size: 13px; }
+.req-row:hover { border-color: #58a6ff; }
+.req-row .time { color: #8b949e; min-width: 80px; }
+.req-row .op { color: #c9d1d9; flex: 1; }
+.req-row .status { font-weight: 600; min-width: 30px; text-align: right; }
+.status-2xx { color: #3fb950; }
+.status-4xx { color: #d29922; }
+.status-5xx { color: #f85149; }
+.detail { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 12px; margin-top: 8px; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+.form-group { margin-bottom: 8px; }
+.form-group label { display: block; color: #8b949e; font-size: 12px; margin-bottom: 4px; }
+.form-group input, .form-group select { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 8px; border-radius: 4px; font-size: 13px; }
+.add-form { border-top: 1px solid #30363d; padding-top: 12px; margin-top: 12px; }
+.toast { position: fixed; top: 16px; right: 16px; background: #238636; color: #fff; padding: 8px 16px; border-radius: 4px; font-size: 13px; display: none; z-index: 100; }
+.controls { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>fakeaws</h1>
+    <div class="controls">
+      <button onclick="resetAll()" class="danger">Reset All</button>
+    </div>
+  </header>
+
+  <div class="panel">
+    <h2>Scenarios</h2>
+    <div class="presets">
+      <button onclick="applyPreset('happy_path')">Happy Path</button>
+      <button onclick="applyPreset('throttle_all_sends')">Throttle Sends</button>
+      <button onclick="applyPreset('sending_paused')">Pause Account</button>
+      <button onclick="promptPreset('sandbox_mode')">Sandbox Mode</button>
+      <button onclick="applyPreset('intermittent_failures')">Intermittent Failures</button>
+      <button onclick="applyPreset('slow_responses')">Slow Responses</button>
+    </div>
+    <div id="scenarios"></div>
+
+    <div class="add-form">
+      <h2>Add Scenario</h2>
+      <div class="form-group"><label>Name</label><input id="s-name" placeholder="optional"></div>
+      <div class="form-group"><label>Operation</label><input id="s-op" placeholder="e.g. SendEmail"></div>
+      <div class="form-group">
+        <label>Response Type</label>
+        <select id="s-type">
+          <option value="success">Success</option>
+          <option value="error">Error</option>
+          <option value="throttle">Throttle (429)</option>
+          <option value="timeout">Timeout</option>
+          <option value="delay">Delay</option>
+        </select>
+      </div>
+      <div class="form-group" id="error-fields" style="display:none">
+        <label>Error Code</label><input id="s-error-code" placeholder="e.g. MessageRejected">
+        <label style="margin-top:4px">Message</label><input id="s-error-msg" placeholder="optional">
+        <label style="margin-top:4px">Status Code</label><input id="s-status" placeholder="400" type="number">
+      </div>
+      <div class="form-group" id="delay-fields" style="display:none">
+        <label>Delay (ms)</label><input id="s-delay" placeholder="1000" type="number">
+      </div>
+      <div class="form-group"><label><input type="checkbox" id="s-once"> Once (auto-remove after first match)</label></div>
+      <button class="primary" onclick="addScenario()">Add</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Request Log <button onclick="clearRequests()" style="float:right;font-size:11px">Clear</button></h2>
+    <div class="form-group" style="margin-bottom:8px">
+      <input id="op-filter" placeholder="Filter by operation..." oninput="refreshRequests()">
+    </div>
+    <div id="requests"></div>
+    <div id="req-detail" class="detail" style="display:none"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE = window.location.origin;
+
+function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(BASE + path, opts).then(r => r.json());
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 1500);
+}
+
+async function refreshScenarios() {
+  const data = await api('GET', '/_control/scenarios');
+  const el = document.getElementById('scenarios');
+  if (!data || data.length === 0) {
+    el.innerHTML = '<div style="color:#8b949e;padding:8px">No active scenarios (defaults apply)</div>';
+    return;
+  }
+  el.innerHTML = data.map(s => `
+    <div class="scenario-card">
+      <div class="info">
+        <div class="name">${esc(s.name)}</div>
+        <div class="meta">${esc(s.matcherDescription)} → ${esc(s.responseDescription)} | hits: ${s.hitCount}${s.once ? ' | once' : ''}</div>
+      </div>
+      <button class="remove" onclick="removeScenario('${esc(s.id)}')">&times;</button>
+    </div>
+  `).join('');
+}
+
+async function refreshRequests() {
+  const filter = document.getElementById('op-filter').value;
+  let url = '/_control/requests?last=50';
+  if (filter) url += '&operation=' + encodeURIComponent(filter);
+  const data = await api('GET', url);
+  const el = document.getElementById('requests');
+  const reqs = data.requests || [];
+  if (reqs.length === 0) {
+    el.innerHTML = '<div style="color:#8b949e;padding:8px">No requests recorded</div>';
+    return;
+  }
+  el.innerHTML = reqs.reverse().map(r => {
+    const cls = r.responseCode >= 500 ? 'status-5xx' : r.responseCode >= 400 ? 'status-4xx' : 'status-2xx';
+    const t = new Date(r.timestamp).toLocaleTimeString();
+    return `<div class="req-row" onclick="showDetail('${esc(r.id)}')">
+      <span class="time">${t}</span>
+      <span class="op">${esc(r.operation)}</span>
+      <span class="status ${cls}">${r.responseCode}</span>
+    </div>`;
+  }).join('');
+}
+
+async function showDetail(id) {
+  const data = await api('GET', '/_control/requests/' + id);
+  const el = document.getElementById('req-detail');
+  el.style.display = 'block';
+  el.textContent = JSON.stringify(data, null, 2);
+}
+
+async function removeScenario(id) {
+  await api('DELETE', '/_control/scenarios/' + id);
+  refreshScenarios();
+}
+
+async function addScenario() {
+  const input = {
+    name: document.getElementById('s-name').value,
+    operation: document.getElementById('s-op').value,
+    response: { type: document.getElementById('s-type').value },
+    once: document.getElementById('s-once').checked,
+  };
+  if (input.response.type === 'error') {
+    input.response.error_code = document.getElementById('s-error-code').value;
+    input.response.message = document.getElementById('s-error-msg').value;
+    const sc = document.getElementById('s-status').value;
+    if (sc) input.response.status_code = parseInt(sc);
+  }
+  if (input.response.type === 'delay') {
+    const d = document.getElementById('s-delay').value;
+    if (d) input.response.delay_ms = parseInt(d);
+  }
+  await api('POST', '/_control/scenarios', input);
+  toast('Scenario added');
+  refreshScenarios();
+}
+
+async function applyPreset(name) {
+  await api('POST', '/_control/scenarios/presets/' + name);
+  toast('Preset applied: ' + name);
+  refreshScenarios();
+}
+
+function promptPreset(name) {
+  const addrs = prompt('Enter verified email addresses (comma-separated):');
+  if (!addrs) return;
+  const list = addrs.split(',').map(s => s.trim()).filter(Boolean);
+  api('POST', '/_control/scenarios/presets/' + name, { verified_addresses: list }).then(() => {
+    toast('Preset applied: ' + name);
+    refreshScenarios();
+  });
+}
+
+async function clearRequests() {
+  await api('DELETE', '/_control/requests');
+  refreshRequests();
+  document.getElementById('req-detail').style.display = 'none';
+}
+
+async function resetAll() {
+  if (!confirm('Reset all scenarios and request log?')) return;
+  await api('POST', '/_control/reset');
+  toast('Reset complete');
+  refreshScenarios();
+  refreshRequests();
+  document.getElementById('req-detail').style.display = 'none';
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// Toggle error/delay fields
+document.getElementById('s-type').addEventListener('change', function() {
+  document.getElementById('error-fields').style.display = this.value === 'error' ? '' : 'none';
+  document.getElementById('delay-fields').style.display = this.value === 'delay' ? '' : 'none';
+});
+
+// Initial load + auto-refresh
+refreshScenarios();
+refreshRequests();
+setInterval(refreshRequests, 2000);
+setInterval(refreshScenarios, 5000);
+</script>
+</body>
+</html>

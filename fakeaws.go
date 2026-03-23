@@ -44,6 +44,7 @@ var (
 	HeaderEquals = engine.HeaderEquals
 	All          = engine.All
 	Any          = engine.Any
+	Probability  = engine.Probability
 )
 
 // --- Constants ---

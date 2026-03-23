@@ -2,6 +2,7 @@ package fakeaws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -17,13 +18,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"go.uber.org/zap"
 
+	"github.com/altacoda/fakeaws/internal/controlplane"
 	"github.com/altacoda/fakeaws/internal/engine"
 )
 
 // FakeServer wraps an Engine in an httptest.Server for in-process test usage.
 type FakeServer struct {
-	engine *engine.Engine
-	server *httptest.Server
+	engine       *engine.Engine
+	controlPlane *controlplane.ControlPlane
+	server       *httptest.Server
 }
 
 // NewFakeServer creates a FakeServer with a running httptest.Server.
@@ -34,24 +37,18 @@ func NewFakeServer() *FakeServer {
 // NewFakeServerWithLogger creates a FakeServer with a custom logger.
 func NewFakeServerWithLogger(logger *zap.Logger) *FakeServer {
 	e := engine.NewEngine(logger)
+	cp := controlplane.New(e, logger)
 
 	mux := http.NewServeMux()
-
-	// Stub control plane — will be implemented in M3
-	mux.HandleFunc("/_control/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte(`{"error":"control plane not yet implemented"}`))
-	})
-
-	// All other requests go to the AWS engine
+	mux.Handle("/_control/", cp.Handler())
 	mux.Handle("/", e)
 
 	srv := httptest.NewServer(mux)
 
 	return &FakeServer{
-		engine: e,
-		server: srv,
+		engine:       e,
+		controlPlane: cp,
+		server:       srv,
 	}
 }
 
@@ -105,6 +102,19 @@ func (fs *FakeServer) CountRequests(service, operation string) int {
 // LastRequest returns the most recent request matching service and operation.
 func (fs *FakeServer) LastRequest(service, operation string) *RecordedRequest {
 	return fs.engine.LastRequest(service, operation)
+}
+
+// ApplyPreset applies a named preset to the engine.
+func (fs *FakeServer) ApplyPreset(name string, config any) error {
+	var configJSON []byte
+	if config != nil {
+		var err error
+		configJSON, err = json.Marshal(config)
+		if err != nil {
+			return err
+		}
+	}
+	return fs.controlPlane.ApplyPreset(name, configJSON)
 }
 
 // --- SDK Client Factories ---
