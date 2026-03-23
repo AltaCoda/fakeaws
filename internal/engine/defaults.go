@@ -8,18 +8,47 @@ import (
 
 // defaultHandlers maps operation names to their default success responders.
 var defaultHandlers = map[string]Responder{
-	"SendEmail":      defaultSendEmail,
-	"SendBulkEmail":  defaultSendBulkEmail,
-	"GetAccount":     defaultGetAccount,
-	"CreateConfigurationSet": defaultEmpty,
-	"GetConfigurationSet":    defaultGetConfigurationSet,
-	"DeleteConfigurationSet": defaultEmpty,
+	// Sending
+	"SendEmail":     defaultSendEmail,
+	"SendBulkEmail": defaultSendBulkEmail,
+
+	// Account
+	"GetAccount":               defaultGetAccount,
 	"PutAccountSendingAttributes": defaultEmpty,
-	"CreateEmailIdentity":  defaultCreateEmailIdentity,
-	"GetEmailIdentity":     defaultGetEmailIdentity,
-	"DeleteEmailIdentity":  defaultEmpty,
-	"AssumeRole":           defaultAssumeRole,
-	"GetCallerIdentity":    defaultGetCallerIdentity,
+	"PutAccountDetails":        defaultEmpty,
+
+	// Identities
+	"ListEmailIdentities":                      defaultListEmailIdentities,
+	"CreateEmailIdentity":                       defaultCreateEmailIdentity,
+	"GetEmailIdentity":                          defaultGetEmailIdentity,
+	"DeleteEmailIdentity":                       defaultEmpty,
+	"PutEmailIdentityConfigurationSetAttributes": defaultEmpty,
+
+	// Configuration sets
+	"ListConfigurationSets":                 defaultListConfigurationSets,
+	"CreateConfigurationSet":                defaultEmpty,
+	"GetConfigurationSet":                   defaultGetConfigurationSet,
+	"DeleteConfigurationSet":                defaultEmpty,
+	"PutConfigurationSetSendingOptions":     defaultEmpty,
+	"PutConfigurationSetDeliveryOptions":    defaultEmpty,
+	"PutConfigurationSetSuppressionOptions": defaultEmpty,
+	"PutConfigurationSetTrackingOptions":    defaultEmpty,
+	"CreateConfigurationSetEventDestination": defaultEmpty,
+
+	// Templates
+	"ListEmailTemplates":  defaultListEmailTemplates,
+	"CreateEmailTemplate": defaultEmpty,
+	"GetEmailTemplate":    defaultGetEmailTemplate,
+	"UpdateEmailTemplate": defaultEmpty,
+	"DeleteEmailTemplate": defaultEmpty,
+
+	// Suppression
+	"ListSuppressedDestinations":  defaultListSuppressedDestinations,
+	"DeleteSuppressedDestination": defaultEmpty,
+
+	// STS
+	"AssumeRole":        defaultAssumeRole,
+	"GetCallerIdentity": defaultGetCallerIdentity,
 }
 
 // DefaultHandler returns the default responder for an operation, or a generic 200 OK.
@@ -39,6 +68,8 @@ func defaultEmpty(w http.ResponseWriter, req *ParsedRequest) {
 	}
 }
 
+// --- Sending ---
+
 func defaultSendEmail(w http.ResponseWriter, req *ParsedRequest) {
 	WriteJSONResponse(w, http.StatusOK, map[string]any{
 		"MessageId": GenerateMessageID(),
@@ -56,6 +87,8 @@ func defaultSendBulkEmail(w http.ResponseWriter, req *ParsedRequest) {
 	})
 }
 
+// --- Account ---
+
 func defaultGetAccount(w http.ResponseWriter, req *ParsedRequest) {
 	WriteJSONResponse(w, http.StatusOK, map[string]any{
 		"SendQuota": map[string]any{
@@ -63,7 +96,53 @@ func defaultGetAccount(w http.ResponseWriter, req *ParsedRequest) {
 			"MaxSendRate":     14.0,
 			"SentLast24Hours": 100.0,
 		},
-		"SendingEnabled": true,
+		"SendingEnabled":          true,
+		"ProductionAccessEnabled": true,
+		"EnforcementStatus":       "HEALTHY",
+		"Details": map[string]any{
+			"WebsiteURL": "https://sendops.dev",
+		},
+	})
+}
+
+// --- Identities ---
+
+func defaultListEmailIdentities(w http.ResponseWriter, req *ParsedRequest) {
+	WriteJSONResponse(w, http.StatusOK, map[string]any{
+		"EmailIdentities": []map[string]any{},
+	})
+}
+
+func defaultCreateEmailIdentity(w http.ResponseWriter, req *ParsedRequest) {
+	WriteJSONResponse(w, http.StatusOK, map[string]any{
+		"IdentityType":             "EMAIL_ADDRESS",
+		"VerifiedForSendingStatus": true,
+		"DkimAttributes": map[string]any{
+			"SigningEnabled": true,
+			"Status":         "SUCCESS",
+			"Tokens":         []string{"token1", "token2", "token3"},
+		},
+	})
+}
+
+func defaultGetEmailIdentity(w http.ResponseWriter, req *ParsedRequest) {
+	WriteJSONResponse(w, http.StatusOK, map[string]any{
+		"IdentityType":             "EMAIL_ADDRESS",
+		"VerifiedForSendingStatus": true,
+		"FeedbackForwardingStatus": true,
+		"DkimAttributes": map[string]any{
+			"SigningEnabled": true,
+			"Status":         "SUCCESS",
+			"Tokens":         []string{"token1", "token2", "token3"},
+		},
+	})
+}
+
+// --- Configuration Sets ---
+
+func defaultListConfigurationSets(w http.ResponseWriter, req *ParsedRequest) {
+	WriteJSONResponse(w, http.StatusOK, map[string]any{
+		"ConfigurationSets": []map[string]any{},
 	})
 }
 
@@ -74,38 +153,50 @@ func defaultGetConfigurationSet(w http.ResponseWriter, req *ParsedRequest) {
 	})
 }
 
-func defaultCreateEmailIdentity(w http.ResponseWriter, req *ParsedRequest) {
+// --- Templates ---
+
+func defaultListEmailTemplates(w http.ResponseWriter, req *ParsedRequest) {
 	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"IdentityType":             "EMAIL_ADDRESS",
-		"VerifiedForSendingStatus": true,
+		"TemplatesMetadata": []map[string]any{},
 	})
 }
 
-func defaultGetEmailIdentity(w http.ResponseWriter, req *ParsedRequest) {
+func defaultGetEmailTemplate(w http.ResponseWriter, req *ParsedRequest) {
+	name := req.PathParams["TemplateName"]
 	WriteJSONResponse(w, http.StatusOK, map[string]any{
-		"IdentityType":             "EMAIL_ADDRESS",
-		"VerifiedForSendingStatus": true,
-		"FeedbackForwardingStatus": true,
+		"TemplateName": name,
+		"TemplateContent": map[string]any{
+			"Subject": "Template " + name,
+			"Html":    "<p>Template content</p>",
+		},
 	})
 }
 
-// STS XML response types
+// --- Suppression ---
+
+func defaultListSuppressedDestinations(w http.ResponseWriter, req *ParsedRequest) {
+	WriteJSONResponse(w, http.StatusOK, map[string]any{
+		"SuppressedDestinationSummaries": []map[string]any{},
+	})
+}
+
+// --- STS ---
 
 type assumeRoleResponse struct {
-	XMLName xml.Name          `xml:"AssumeRoleResponse"`
-	Result  assumeRoleResult  `xml:"AssumeRoleResult"`
+	XMLName xml.Name         `xml:"AssumeRoleResponse"`
+	Result  assumeRoleResult `xml:"AssumeRoleResult"`
 }
 
 type assumeRoleResult struct {
-	Credentials    stsCredentials `xml:"Credentials"`
+	Credentials     stsCredentials  `xml:"Credentials"`
 	AssumedRoleUser assumedRoleUser `xml:"AssumedRoleUser"`
 }
 
 type stsCredentials struct {
-	AccessKeyId     string `xml:"AccessKeyId"`
-	SecretAccessKey  string `xml:"SecretAccessKey"`
-	SessionToken    string `xml:"SessionToken"`
-	Expiration      string `xml:"Expiration"`
+	AccessKeyId    string `xml:"AccessKeyId"`
+	SecretAccessKey string `xml:"SecretAccessKey"`
+	SessionToken   string `xml:"SessionToken"`
+	Expiration     string `xml:"Expiration"`
 }
 
 type assumedRoleUser struct {
@@ -114,8 +205,8 @@ type assumedRoleUser struct {
 }
 
 type getCallerIdentityResponse struct {
-	XMLName xml.Name                   `xml:"GetCallerIdentityResponse"`
-	Result  getCallerIdentityResult    `xml:"GetCallerIdentityResult"`
+	XMLName xml.Name                `xml:"GetCallerIdentityResponse"`
+	Result  getCallerIdentityResult `xml:"GetCallerIdentityResult"`
 }
 
 type getCallerIdentityResult struct {
