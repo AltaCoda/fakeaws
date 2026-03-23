@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/altacoda/fakeaws/internal/engine"
@@ -25,9 +26,80 @@ func builtinPresets() map[string]PresetFunc {
 }
 
 func presetHappyPath(_ json.RawMessage) ([]*engine.Scenario, error) {
-	// No scenarios needed — default handlers are all success
-	return nil, nil
+	return []*engine.Scenario{
+		{
+			Name:                "happy_path: ListEmailIdentities with fake identities",
+			Matcher:             engine.OperationIs("ListEmailIdentities"),
+			MatcherDescription:  "operation=ListEmailIdentities",
+			ResponseDescription: "fake verified identities",
+			Responder: func(w http.ResponseWriter, req *engine.ParsedRequest) {
+				engine.WriteJSONResponse(w, http.StatusOK, map[string]any{
+					"EmailIdentities": []map[string]any{
+						{
+							"IdentityType":             "DOMAIN",
+							"IdentityName":             "sendops.dev",
+							"SendingEnabled":           true,
+							"VerificationStatus":       "SUCCESS",
+						},
+						{
+							"IdentityType":             "DOMAIN",
+							"IdentityName":             "example.com",
+							"SendingEnabled":           true,
+							"VerificationStatus":       "SUCCESS",
+						},
+						{
+							"IdentityType":             "EMAIL_ADDRESS",
+							"IdentityName":             "noreply@sendops.dev",
+							"SendingEnabled":           true,
+							"VerificationStatus":       "SUCCESS",
+						},
+						{
+							"IdentityType":             "EMAIL_ADDRESS",
+							"IdentityName":             "test@example.com",
+							"SendingEnabled":           true,
+							"VerificationStatus":       "SUCCESS",
+						},
+					},
+				})
+			},
+		},
+		{
+			Name:                "happy_path: GetEmailIdentity returns verified with DKIM",
+			Matcher:             engine.OperationIs("GetEmailIdentity"),
+			MatcherDescription:  "operation=GetEmailIdentity",
+			ResponseDescription: "verified identity with DKIM",
+			Responder: func(w http.ResponseWriter, req *engine.ParsedRequest) {
+				identity := req.PathParams["EmailIdentity"]
+				identityType := "EMAIL_ADDRESS"
+				if !strings.Contains(identity, "@") {
+					identityType = "DOMAIN"
+				}
+				engine.WriteJSONResponse(w, http.StatusOK, map[string]any{
+					"IdentityType":             identityType,
+					"VerifiedForSendingStatus": true,
+					"FeedbackForwardingStatus": true,
+					"DkimAttributes": map[string]any{
+						"SigningEnabled": true,
+						"Status":         "SUCCESS",
+						"Tokens":         []string{"dkim1-" + identity, "dkim2-" + identity, "dkim3-" + identity},
+					},
+				})
+			},
+		},
+		{
+			Name:                "happy_path: ListConfigurationSets with default set",
+			Matcher:             engine.OperationIs("ListConfigurationSets"),
+			MatcherDescription:  "operation=ListConfigurationSets",
+			ResponseDescription: "default configuration set",
+			Responder: func(w http.ResponseWriter, req *engine.ParsedRequest) {
+				engine.WriteJSONResponse(w, http.StatusOK, map[string]any{
+					"ConfigurationSets": []string{"sendops-events"},
+				})
+			},
+		},
+	}, nil
 }
+
 
 func presetSendingPaused(_ json.RawMessage) ([]*engine.Scenario, error) {
 	return []*engine.Scenario{
